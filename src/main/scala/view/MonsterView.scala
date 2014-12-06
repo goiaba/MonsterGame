@@ -3,7 +3,7 @@ package view
 
 import android.app.AlertDialog
 import android.content.DialogInterface.OnClickListener
-import android.content.{DialogInterface, Context}
+import android.content.{Context, DialogInterface}
 import android.graphics.Paint.Style
 import android.graphics.{BitmapFactory, Canvas, Color, Paint}
 import android.util.{AttributeSet, DisplayMetrics}
@@ -88,8 +88,8 @@ class MonsterView(context: Context, attrs: AttributeSet, defStyle: Int) extends 
 
     canvas.drawRect(0, 0, getWidth - 1, getHeight - 1, paint)
 
-    val col: Int = (getWidth/squareSide)-1
-    val row: Int = (getHeight/squareSide)-1
+    val col: Int = (getWidth/squareSide)
+    val row: Int = (getHeight/squareSide)
 
     for (i <- 1 to row)
       canvas.drawLine(0, squareSide * i, getWidth, squareSide * i, paint)
@@ -103,19 +103,25 @@ class MonsterView(context: Context, attrs: AttributeSet, defStyle: Int) extends 
     paint.setStyle(Style.FILL)
     paint.setColor(Color.BLACK)
     for (monster <- monsterGame.getMonsters) {
-      val x = getTopLeftVertex(monster.col)
-      val y = getTopLeftVertex(monster.row)
-      canvas.drawBitmap(BitmapFactory.decodeResource(getResources, R.drawable.krunch), x, y, paint)
+      if (null != monster.cell) {
+        val x = getTopLeftVertex(monster.cell.getCol())
+        val y = getTopLeftVertex(monster.cell.getRow())
+        canvas.drawBitmap(BitmapFactory.decodeResource(getResources,
+          if (monster.isVulnerable) R.drawable.vulnerable else R.drawable.mprotected), x, y, paint)
+      }
     }
   }
 
-  def showAlertDialog(): Unit = {
-    val alertDialog: AlertDialog = new AlertDialog.Builder(this).create()
-    alertDialog.setTitle("Title")
-    alertDialog.setMessage("Message")
-    alertDialog.setButton("OK", new OnClickListener {
-      override def onClick(dialog: DialogInterface, which: Int): Unit = ???
-    });
+  def showAlertDialog(timeElapsed: Long): Unit = {
+    val message = "Time elapsed to kill all monsters on \"%s\" level: " +
+      "%dms" format (monsterGame.getLevel().levelDesc, timeElapsed)
+
+    val alertDialog: AlertDialog = new AlertDialog.Builder(getContext()).create()
+    alertDialog.setTitle("Game Result")
+    alertDialog.setMessage(message)
+    alertDialog.setButton(DialogInterface.BUTTON_NEUTRAL,"Ok", new OnClickListener {
+      override def onClick(dialog: DialogInterface, which: Int): Unit = dialog.cancel()
+    })
     alertDialog.show()
   }
 }

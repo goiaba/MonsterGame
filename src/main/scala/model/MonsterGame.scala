@@ -1,37 +1,97 @@
 package edu.luc.etl.cs313.scala.uidemo.model
 
+import android.os.Handler
+import edu.luc.etl.cs313.scala.uidemo.model.MonsterGame.MonsterChangeListener
+
 import scala.collection.mutable.ListBuffer
+import scala.util.Random
 
 /**
  * Created by bruno on 04/12/14.
  */
 
 trait MonsterGameLevel {
+  val levelDesc: String
   val numberOfMonsters: Int
   val monsterVulnerableSliceTime: Int
 }
 
 object Level1 extends MonsterGameLevel {
-  override val numberOfMonsters = 8
+  override val levelDesc = "Easy"
+  override val numberOfMonsters = 12
   override val monsterVulnerableSliceTime = 500
 }
 
 object Level2 extends MonsterGameLevel {
-  override val numberOfMonsters = 12
+  override val levelDesc = "Moderate"
+  override val numberOfMonsters = 16
   override val monsterVulnerableSliceTime = 250
 }
 
 object Level3 extends MonsterGameLevel {
-  override val numberOfMonsters = 16
+  override val levelDesc = "Hard"
+  override val numberOfMonsters = 20
   override val monsterVulnerableSliceTime = 125
 }
 
-case class Monster(row: Int, col: Int, vulnerableTime: Long)
+case class Monster(var cell: Cell, vulnerableTime: Long) extends Runnable {
+
+  private var monsterChangeListener: MonsterGame.MonsterChangeListener = _
+
+  private val maxDelay = 1500
+
+  private var isAlive = true
+
+  private var vulnerable = Random.nextBoolean()
+
+  private val handler: Handler = new Handler()
+
+  def isVulnerable: Boolean = vulnerable
+
+  def getRandomDelayToMove(): Long = {
+    (Random.nextInt(maxDelay)).toLong
+  }
+  /** @param l set the change listener. */
+  def setMonsterChangeListener(l: MonsterGame.MonsterChangeListener) = monsterChangeListener = l
+
+  def move: Unit = {
+    this.synchronized {
+      cell.moveToRandomAdjacentCell()
+    }
+    notifyListener()
+  }
+
+  def kill: Unit = {
+    this.synchronized {
+      if (vulnerable) {
+        isAlive = false
+        cell = null
+      }
+    }
+  }
+
+  override def run(): Unit = {
+    while (isAlive) {
+      handler.post(new Runnable {
+        override def run(): Unit = move
+      })
+      try { Thread.sleep(getRandomDelayToMove()) } catch { case _: InterruptedException => null }
+    }
+  }
+
+  private def notifyListener(): Unit =
+    if (null != monsterChangeListener)
+      monsterChangeListener.onMonsterChange(this)
+
+}
 
 object MonsterGame {
   trait MonsterGameChangeListener {
     /** @param monsterGame the monsters that changed. */
     def onMonsterGameChange(monsterGame: MonsterGame): Unit
+  }
+  trait MonsterChangeListener {
+    def onMonsterChange(monster: Monster): Unit
   }
 }
 
@@ -66,7 +126,11 @@ class MonsterGame(val rows: Int, val cols: Int) {
 
   private var elapsedTime: Long = 0
 
+  def getElapsedTime = { elapsedTime }
+
   def setLevel(level: MonsterGameLevel) = this.level = level
+
+  def getLevel() = this.level
   
   def getAvailableLevels: List[MonsterGameLevel] = {
     List[MonsterGameLevel](Level1, Level2, Level3)
@@ -78,7 +142,7 @@ class MonsterGame(val rows: Int, val cols: Int) {
 
   def startGame: Unit = {
     for (m <- 1 to level.numberOfMonsters)
-      addMonster()
+      createMonster()
     startTime = System.currentTimeMillis()
   }
   
@@ -93,20 +157,32 @@ class MonsterGame(val rows: Int, val cols: Int) {
 
   def getMonsters(): List[Monster] = monsters.toList
 
-  def addMonster(): Unit = {
-    val newMonster = gameBoard.putMonsterInACell(level.monsterVulnerableSliceTime)
-    if (null != newMonster) {
-      monsters += newMonster
-      notifyListener()
+  def createMonster(): Unit = {
+    this.synchronized {
+      val newMonster = gameBoard.putMonsterInARandomCell(level.monsterVulnerableSliceTime)
+      if (null != newMonster) {
+        newMonster.setMonsterChangeListener(new MonsterChangeListener {
+          override def onMonsterChange(monster: Monster): Unit = notifyListener()
+        })
+        monsters += newMonster
+        notifyListener()
+        new Thread(newMonster).start()
+      }
     }
   }
 
-  def removeMonster(row: Int, col: Int): Unit = {
-    val monster = gameBoard.removeMonsterFromTheCell(row, col)
-    monsters -= monster
-    if (monsters.isEmpty)
-      endGame
-    notifyListener()
+  def killMonster(row: Int, col: Int): Unit = {
+    this.synchronized {
+      val monster = gameBoard.getMonsterFromCell(row, col)
+      if (null != monster && monster.isVulnerable) {
+        gameBoard.removeMonsterFromTheCell(row, col)
+        monsters -= monster
+        monster.kill
+        if (monsters.isEmpty)
+          endGame
+        notifyListener()
+      }
+    }
   }
 
   private def notifyListener(): Unit =

@@ -10,7 +10,7 @@ class MainActivity extends Activity with TypedActivity with Controller {
 
   //TODO Get the number of monsters from view (level).
   /** The application model */
-  override val monsterGameModel = new MonsterGame(10, 8)
+  override val monsterGameModel = new MonsterGame(11, 8)
   /** The monster generator */
 //  var monsterGenerator: MonsterGenerator = _
 

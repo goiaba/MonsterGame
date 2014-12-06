@@ -10,7 +10,7 @@ import scala.collection.mutable.ArrayBuffer
 /** Listen for taps. */
 class TrackingTouchListener(monsterGame: MonsterGame, monsterView: MonsterView) extends View.OnTouchListener {
 
-  val tracks = new ArrayBuffer[Int]
+  var pointerIdx = 0
 
   override def onTouch(v: View, evt: MotionEvent): Boolean = {
     val action = evt.getAction
@@ -18,23 +18,15 @@ class TrackingTouchListener(monsterGame: MonsterGame, monsterView: MonsterView) 
       case MotionEvent.ACTION_DOWN | MotionEvent.ACTION_POINTER_DOWN =>
         val idx = (action & MotionEvent.ACTION_POINTER_INDEX_MASK) >>
           MotionEvent.ACTION_POINTER_INDEX_SHIFT
-        tracks += evt.getPointerId(idx)
+          val pointerIdx = evt.findPointerIndex(evt.getPointerId(idx))
+          removeMonster(monsterGame, evt.getX(pointerIdx), evt.getY(pointerIdx))
       case _ => false
     }
-
-    for (i <- tracks) {
-      val idx = evt.findPointerIndex(i)
-      removeMonster(monsterGame,
-        evt.getX(idx),
-        evt.getY(idx)
-      )
-    }
-
     true
   }
 
   private def removeMonster(monsterGame: MonsterGame, x: Float, y: Float) = {
     val tuple = monsterView.getRowAndColFromCoordinates(x, y)
-    monsterGame.removeMonster(tuple._1, tuple._2)
+    monsterGame.killMonster(tuple._1, tuple._2)
   }
 }

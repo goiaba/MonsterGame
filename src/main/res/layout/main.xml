@@ -15,27 +15,4 @@
       android:layout_height="match_parent"
       android:layout_weight="1"
       android:background="@color/white"/>
-
-  <LinearLayout
-      android:orientation="horizontal"
-      android:background="@color/grey"
-      android:layout_width="match_parent"
-      android:layout_height="wrap_content">
-
-    <EditText
-        android:id="@+id/text1"
-        android:text="@string/defaultText"
-        android:focusable="false"
-        android:layout_height="wrap_content"
-        android:layout_width="0dp"
-        android:layout_weight="1"/>
-
-    <EditText
-        android:id="@+id/text2"
-        android:text="@string/defaultText"
-        android:focusable="false"
-        android:layout_height="wrap_content"
-        android:layout_width="0dp"
-        android:layout_weight="1"/>
-  </LinearLayout>
 </LinearLayout>

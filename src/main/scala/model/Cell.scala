@@ -1,5 +1,7 @@
 package edu.luc.etl.cs313.scala.uidemo.model
 
+import android.util.Log
+
 import scala.collection.mutable.ListBuffer
 import scala.util.Random
 
@@ -7,6 +9,9 @@ import scala.util.Random
  * Created by bruno on 04/12/14.
  */
 trait Cell {
+  def isEmpty(): Boolean
+  def getRow(): Int
+  def getCol(): Int
   def getAdjacentCells(): List[Cell]
   def getRandomAdjacentCell(): Cell
   def moveToRandomAdjacentCell()
@@ -16,28 +21,42 @@ trait Cell {
   def removeMonster()
 }
 
-class MonsterCell extends Cell {
+class MonsterCell(val row: Int, val col: Int) extends Cell {
 
   private var monster: Monster = null
   private val adjacentCells = new ListBuffer[Cell]
 
   override def getAdjacentCells(): List[Cell] = adjacentCells.toList
 
-  def getRandomAdjacentCell(): Cell = {
+  override def getRandomAdjacentCell(): Cell = {
     val index = (Random.nextFloat() * adjacentCells.size).toInt
     adjacentCells(index)
   }
 
-  def moveToRandomAdjacentCell() = {
-    getRandomAdjacentCell().setMonster(monster)
-    removeMonster()
+  override def moveToRandomAdjacentCell() = {
+    val cell = getRandomAdjacentCell()
+    if (cell.isEmpty) {
+      cell.setMonster(monster)
+      monster.cell = cell
+      removeMonster()
+    }
   }
 
-  def addAdjacentCell(cell: Cell) = adjacentCells += cell
+  override def addAdjacentCell(cell: Cell) = adjacentCells += cell
 
   override def removeMonster(): Unit = monster = null
 
   override def setMonster(monster: Monster): Unit = this.monster = monster
 
   override def getMonster(): Monster = monster
+
+  override def getRow(): Int = row
+
+  override def getCol(): Int = col
+
+  override def isEmpty(): Boolean = monster == null
+
+  override def toString(): String = {
+  "[" + row + ", " + col + "]"
+  }
 }
