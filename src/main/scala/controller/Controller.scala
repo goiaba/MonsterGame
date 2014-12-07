@@ -2,7 +2,7 @@ package edu.luc.etl.cs313.scala.uidemo
 package controller
 
 import android.app.Activity
-import edu.luc.etl.cs313.scala.uidemo.model.{Monster, MonsterGame}
+import edu.luc.etl.cs313.scala.uidemo.model.MonsterGame
 import edu.luc.etl.cs313.scala.uidemo.model.MonsterGame.MonsterGameChangeListener
 import edu.luc.etl.cs313.scala.uidemo.view.MonsterView
 

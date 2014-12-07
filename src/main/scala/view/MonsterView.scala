@@ -103,9 +103,9 @@ class MonsterView(context: Context, attrs: AttributeSet, defStyle: Int) extends 
     paint.setStyle(Style.FILL)
     paint.setColor(Color.BLACK)
     for (monster <- monsterGame.getMonsters) {
-      if (null != monster.cell) {
-        val x = getTopLeftVertex(monster.cell.getCol())
-        val y = getTopLeftVertex(monster.cell.getRow())
+      if (null != monster.getCell()) {
+        val x = getTopLeftVertex(monster.getCell().getCol())
+        val y = getTopLeftVertex(monster.getCell().getRow())
         canvas.drawBitmap(BitmapFactory.decodeResource(getResources,
           if (monster.isVulnerable) R.drawable.vulnerable else R.drawable.mprotected), x, y, paint)
       }

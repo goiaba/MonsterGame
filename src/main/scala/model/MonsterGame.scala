@@ -1,10 +1,8 @@
 package edu.luc.etl.cs313.scala.uidemo.model
 
-import android.os.Handler
 import edu.luc.etl.cs313.scala.uidemo.model.MonsterGame.MonsterChangeListener
 
 import scala.collection.mutable.ListBuffer
-import scala.util.Random
 
 /**
  * Created by bruno on 04/12/14.
@@ -32,57 +30,6 @@ object Level3 extends MonsterGameLevel {
   override val levelDesc = "Hard"
   override val numberOfMonsters = 20
   override val monsterVulnerableSliceTime = 125
-}
-
-case class Monster(var cell: Cell, vulnerableTime: Long) extends Runnable {
-
-  private var monsterChangeListener: MonsterGame.MonsterChangeListener = _
-
-  private val maxDelay = 1500
-
-  private var isAlive = true
-
-  private var vulnerable = Random.nextBoolean()
-
-  private val handler: Handler = new Handler()
-
-  def isVulnerable: Boolean = vulnerable
-
-  def getRandomDelayToMove(): Long = {
-    (Random.nextInt(maxDelay)).toLong
-  }
-  /** @param l set the change listener. */
-  def setMonsterChangeListener(l: MonsterGame.MonsterChangeListener) = monsterChangeListener = l
-
-  def move: Unit = {
-    this.synchronized {
-      cell.moveToRandomAdjacentCell()
-    }
-    notifyListener()
-  }
-
-  def kill: Unit = {
-    this.synchronized {
-      if (vulnerable) {
-        isAlive = false
-        cell = null
-      }
-    }
-  }
-
-  override def run(): Unit = {
-    while (isAlive) {
-      handler.post(new Runnable {
-        override def run(): Unit = move
-      })
-      try { Thread.sleep(getRandomDelayToMove()) } catch { case _: InterruptedException => null }
-    }
-  }
-
-  private def notifyListener(): Unit =
-    if (null != monsterChangeListener)
-      monsterChangeListener.onMonsterChange(this)
-
 }
 
 object MonsterGame {
@@ -166,7 +113,7 @@ class MonsterGame(val rows: Int, val cols: Int) {
         })
         monsters += newMonster
         notifyListener()
-        new Thread(newMonster).start()
+        newMonster.start()
       }
     }
   }
@@ -177,7 +124,7 @@ class MonsterGame(val rows: Int, val cols: Int) {
       if (null != monster && monster.isVulnerable) {
         gameBoard.removeMonsterFromTheCell(row, col)
         monsters -= monster
-        monster.kill
+        monster.die()
         if (monsters.isEmpty)
           endGame
         notifyListener()

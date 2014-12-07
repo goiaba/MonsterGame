@@ -29,15 +29,15 @@ class MonsterCell(val row: Int, val col: Int) extends Cell {
   override def getAdjacentCells(): List[Cell] = adjacentCells.toList
 
   override def getRandomAdjacentCell(): Cell = {
-    val index = (Random.nextFloat() * adjacentCells.size).toInt
+    val index = Random.nextInt(adjacentCells.size)
     adjacentCells(index)
   }
 
   override def moveToRandomAdjacentCell() = {
-    val cell = getRandomAdjacentCell()
-    if (cell.isEmpty) {
-      cell.setMonster(monster)
-      monster.cell = cell
+    val randomCell = getRandomAdjacentCell()
+    if (randomCell.isEmpty) {
+      randomCell.setMonster(monster)
+      this.monster.setCell(randomCell)
       removeMonster()
     }
   }
