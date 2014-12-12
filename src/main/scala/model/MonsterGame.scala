@@ -1,6 +1,8 @@
-package edu.luc.etl.cs313.scala.uidemo.model
+package edu.luc.cs.comp413.scala.monstergame.model
 
-import edu.luc.etl.cs313.scala.uidemo.model.MonsterGame.MonsterChangeListener
+import java.util.concurrent.{Executors, ScheduledThreadPoolExecutor}
+
+import edu.luc.cs.comp413.scala.monstergame.common.MonsterGameMemento
 
 import scala.collection.mutable.ListBuffer
 
@@ -12,33 +14,35 @@ trait MonsterGameLevel {
   val levelDesc: String
   val numberOfMonsters: Int
   val monsterVulnerableSliceTime: Int
+  val maxDelayToMove: Int
 }
 
 object Level1 extends MonsterGameLevel {
   override val levelDesc = "Easy"
   override val numberOfMonsters = 12
   override val monsterVulnerableSliceTime = 500
+  override val maxDelayToMove = 1500
 }
 
 object Level2 extends MonsterGameLevel {
   override val levelDesc = "Moderate"
   override val numberOfMonsters = 16
   override val monsterVulnerableSliceTime = 250
+  override val maxDelayToMove = 1500
 }
 
 object Level3 extends MonsterGameLevel {
   override val levelDesc = "Hard"
   override val numberOfMonsters = 20
   override val monsterVulnerableSliceTime = 125
+  override val maxDelayToMove = 1500
 }
 
 object MonsterGame {
   trait MonsterGameChangeListener {
     /** @param monsterGame the monsters that changed. */
     def onMonsterGameChange(monsterGame: MonsterGame): Unit
-  }
-  trait MonsterChangeListener {
-    def onMonsterChange(monster: Monster): Unit
+    def runOnSpecificThread(f: => Unit): Unit
   }
 }
 
@@ -51,6 +55,15 @@ object MonsterGame {
 class MonsterGame(val rows: Int, val cols: Int) {
 
   private var monsterGameChangeListener: MonsterGame.MonsterGameChangeListener = _
+
+  private val poolSize = 1
+
+  /**
+   * A pool of threads that are responsible for execute the moving and changing of
+   *  state of each alive monster.
+   */
+  private val monsterGameThreadPool: ScheduledThreadPoolExecutor =
+    Executors.newScheduledThreadPool(poolSize).asInstanceOf[ScheduledThreadPoolExecutor]
 
   /**
    * Level of game defaults to easiest level. The level influences
@@ -73,62 +86,104 @@ class MonsterGame(val rows: Int, val cols: Int) {
 
   private var elapsedTime: Long = 0
 
-  def getElapsedTime = { elapsedTime }
+  private var cancelled = false
+
+  /**
+   * Store the current state of the game
+   *
+   * @return a memento of this MonsterGame
+   */
+  def getMemento: MonsterGameMemento = {
+    new MonsterGameMemento {
+      override val level: MonsterGameLevel = MonsterGame.this.level
+      override val numberOfAliveMonsters: Int = MonsterGame.this.monsters.size
+      override val elapsedTime: Long = System.currentTimeMillis() - MonsterGame.this.startTime
+    }
+  }
+
+  /**
+   * Restore the state of the game from a previously
+   *  stored memento
+   *
+   * @param memento state information to restore the game
+   */
+  def restoreFromMemento(memento: MonsterGameMemento): Unit = {
+    MonsterGame.this.level = memento.level
+    MonsterGame.this.startTime = System.currentTimeMillis() - memento.elapsedTime
+    MonsterGame.this.startGame(memento.numberOfAliveMonsters)
+  }
+
+  def getElapsedTime = elapsedTime
+
+  def isCancelled = cancelled
 
   def setLevel(level: MonsterGameLevel) = this.level = level
 
-  def getLevel() = this.level
+  def getLevel: MonsterGameLevel = this.level
   
-  def getAvailableLevels: List[MonsterGameLevel] = {
+  def getAvailableLevels: List[MonsterGameLevel] =
     List[MonsterGameLevel](Level1, Level2, Level3)
-  }
 
-  def isGameEnded: Boolean = {
-    monsters.isEmpty
-  }
+  def isRunning: Boolean = monsters.nonEmpty
 
-  def startGame: Unit = {
-    for (m <- 1 to level.numberOfMonsters)
+  private def startGame(numberOfMonsters: Int): Unit = {
+    cancelled = false
+    for (m <- 1 to numberOfMonsters)
       createMonster()
+    notifyListener()
+  }
+
+  def startGame(): Unit = {
+    startGame(level.numberOfMonsters)
     startTime = System.currentTimeMillis()
   }
-  
-  def endGame: Unit = {
+
+  def calcElapsedTime(): Unit = {
     elapsedTime = System.currentTimeMillis() - startTime
   }
 
-  def getLastMonster = if (monsters.size <= 0) null else monsters.last
+  def cancelGame(): Unit = {
+    cancelled = true
+    for (monster <- monsters) {
+      monster.synchronized {
+        gameBoard.releaseCell(monster.getCell)
+        monsters -= monster
+        monster.die
+      }
+    }
+    monsters.clear()
+    notifyListener()
+  }
 
   /** @param l set the change listener. */
-  def setMonsterGameChangeListener(l: MonsterGame.MonsterGameChangeListener) = monsterGameChangeListener = l
+  def setMonsterGameChangeListener(l: MonsterGame.MonsterGameChangeListener) =
+    monsterGameChangeListener = l
 
-  def getMonsters(): List[Monster] = monsters.toList
+  def getMonsters: List[Monster] = monsters.toList
 
   def createMonster(): Unit = {
-    this.synchronized {
-      val newMonster = gameBoard.putMonsterInARandomCell(level.monsterVulnerableSliceTime)
-      if (null != newMonster) {
-        newMonster.setMonsterChangeListener(new MonsterChangeListener {
-          override def onMonsterChange(monster: Monster): Unit = notifyListener()
-        })
-        monsters += newMonster
-        notifyListener()
-        newMonster.start()
-      }
+    val newMonster = new Monster(level.monsterVulnerableSliceTime,
+          level.maxDelayToMove, monsterGameThreadPool) {
+            override def runOnSpecificThread(monsterTask: => Unit): Unit =
+              monsterGameChangeListener.runOnSpecificThread(monsterTask)
+    }
+    if (gameBoard.putMonsterInARandomCell(newMonster)) {
+      monsters += newMonster
+      notifyListener()
     }
   }
 
   def killMonster(row: Int, col: Int): Unit = {
-    this.synchronized {
-      val monster = gameBoard.getMonsterFromCell(row, col)
-      if (null != monster && monster.isVulnerable) {
-        gameBoard.removeMonsterFromTheCell(row, col)
-        monsters -= monster
+    val monster = gameBoard.getMonsterFromCell(row, col)
+    if (null != monster && monster.isVulnerable) {
+      monster.synchronized {
+        gameBoard.releaseCell(monster.getCell)
         monster.die()
-        if (monsters.isEmpty)
-          endGame
-        notifyListener()
+        monsters -= monster
       }
+      if (monsters.isEmpty)
+        calcElapsedTime()
+      notifyListener()
     }
   }
 

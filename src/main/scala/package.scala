@@ -1,7 +1,15 @@
-package edu.luc.etl.cs313.scala
+package edu.luc.cs.comp413.scala.monstergame
+
+import edu.luc.cs.comp413.scala.monstergame.model.MonsterGameLevel
 
 /** Shared constants. */
-package object uidemo {
-  val TAG = "edu.luc.etl.cs313.scala.uidemo" // for logging
-  val DOT_DIAMETER = 50 // TODO externalize
+package object common {
+  val TAG = "edu.luc.cs.comp413.scala.monstergame" // for logging
+
+  /** A memento of the game. */
+  trait MonsterGameMemento extends Serializable {
+    val level: MonsterGameLevel
+    val elapsedTime: Long
+    val numberOfAliveMonsters: Int
+  }
 }

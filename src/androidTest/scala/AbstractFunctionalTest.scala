@@ -1,4 +1,4 @@
-package edu.luc.etl.cs313.scala.uidemo
+package edu.luc.cs.comp413.scala.monstergame
 
 import org.junit.Assert._
 import org.junit.Test

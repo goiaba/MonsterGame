@@ -3,16 +3,15 @@
     android:id="@+id/root"
     android:orientation="vertical"
     android:gravity="center_horizontal"
-    android:background="@color/lt_grey"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:baselineAligned="false">
 
-  <edu.luc.etl.cs313.scala.uidemo.view.MonsterView
+  <edu.luc.cs.comp413.scala.monstergame.view.MonsterView
       android:id="@+id/monsters"
       android:focusableInTouchMode="true"
       android:layout_width="match_parent"
       android:layout_height="match_parent"
       android:layout_weight="1"
-      android:background="@color/white"/>
+      android:background="@drawable/bg_repeating"/>
 </LinearLayout>

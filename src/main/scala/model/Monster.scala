@@ -1,145 +1,111 @@
-package edu.luc.etl.cs313.scala.uidemo.model
+package edu.luc.cs.comp413.scala.monstergame.model
 
-import java.util.{TimerTask, Timer}
-import java.util.concurrent.{Executors, Future, ExecutorService}
-
-import android.os.Handler
+import java.util.concurrent._
 
 import scala.util.Random
 
 /**
  * Created by bruno on 06/12/14.
  */
-case class Monster(private var cell: Cell, vulnerableTime: Long) extends Runnable {
 
-  private val maxDelay = 1500
+/**
+ * This class represents a monster with specific vulnerability time and with random
+ *  movements that occurs periodically
+ *
+ * @param vulnerableInterval the period of time in which the monster is in a vulnerable state
+ * @param moveInterval the interval between each movement
+ * @param monsterGameThreadPool a pool of threads to execute the tasks responsible for moving
+ *                               and changing the state of this  monster
+ */
+abstract class Monster(private val vulnerableInterval: Long,
+                       private val moveInterval: Long,
+                       private var monsterGameThreadPool: ScheduledThreadPoolExecutor) {
 
-  private var monsterChangeListener: MonsterGame.MonsterChangeListener = _
+  private var moveTask: ScheduledFuture[_] = _
 
-  private var liveThread: ExecutorService = _
-
-  private var workThread: ExecutorService = _
-
-  private var task: Future[_] = null
+  private var changeStateTask: ScheduledFuture[_] = _
 
   private var vulnerable = Random.nextBoolean()
 
-  private val handler: Handler = new Handler()
+  private var cell: Cell = null
 
-  private var timer: Timer = new Timer()
+  { addMonsterTasksToTheThreadPool() }
 
-  timer.schedule(new TimerTask {
-    override def run(): Unit = handler.post(new Runnable {
-      override def run(): Unit = changeState()
-    })
-  }, 500, vulnerableTime)
+  def addMonsterTasksToTheThreadPool(): Unit = {
+    moveTask = monsterGameThreadPool
+      .scheduleWithFixedDelay(moveRunnable,
+        (Random.nextFloat() * 4 * moveInterval).toLong,
+        moveInterval,
+        TimeUnit.MILLISECONDS)
+    changeStateTask = monsterGameThreadPool
+      .scheduleWithFixedDelay(changeStateRunnable,
+        (Random.nextFloat() * 4 * vulnerableInterval).toLong,
+        vulnerableInterval,
+        TimeUnit.MILLISECONDS)
+  }
 
-  /** @param l set the change listener. */
-  def setMonsterChangeListener(l: MonsterGame.MonsterChangeListener) = monsterChangeListener = l
+  /**
+   *
+   * @param monsterTask The task that need to be ran
+   *                     into an specific thread
+   */
+  def runOnSpecificThread(monsterTask: => Unit): Unit
 
-  def setCell(cell: Cell): Unit = this.synchronized { this.cell = cell }
+  def setCell(cell: Cell): Unit = this.cell = cell
 
-  def getCell(): Cell = this.synchronized { cell }
+  def getCell: Cell = cell
 
   def isVulnerable: Boolean = vulnerable
 
-  protected def isAlive: Boolean = liveThread != null
-
-  private def getRandomDelayToMove: Long = {
-    Random.nextInt(maxDelay).toLong
-  }
-
-  def start(): Unit = {
-    this.synchronized {
-      if (!isAlive) {
-          liveThread = Executors.newFixedThreadPool(1)
-          workThread = Executors.newFixedThreadPool(1)
-      }
-        liveThread.execute(this)
-    }
-  }
-
-  def kill(): Unit = {
-    this.synchronized {
-      if (isAlive) {
-        liveThread.shutdown()
-        workThread.shutdown()
-        liveThread = null
-        workThread = null
-      }
-      timer.cancel()
-      timer = null
-    }
-  }
+  def isAlive: Boolean = cell != null
 
   def changeState(): Unit = {
-    this.synchronized {
-      vulnerable = !vulnerable
-    }
-    notifyListener()
+    if (isAlive) vulnerable = !vulnerable
   }
 
   def move(): Unit = {
-    this.synchronized {
-      if (isAlive) cell.moveToRandomAdjacentCell()
+    if (isAlive) {
+      cell.moveToRandomAdjacentCell()
     }
-    notifyListener()
   }
 
   def die(): Unit = {
-    synchronized {
-      if (isVulnerable) {
-        cell = null
-        kill()
-      }
+    if (isVulnerable) {
+      moveTask.cancel(true)
+      changeStateTask.cancel(true)
+      monsterGameThreadPool = null
+      cell = null
     }
   }
 
-  protected def execute(runnable: Runnable): Unit = {
-    this.synchronized {
-      if (task != null && !task.isDone()) {
-        task.cancel(true)
-      }
-      if (isAlive)
-        task = workThread.submit(runnable)
-    }
-  }
-
-  override def run(): Unit = {
-    while (!Thread.interrupted()) {
-      try {
-        Thread.sleep(getRandomDelayToMove)
-        execute(moveRunnable)
-      } catch {
-        case _: InterruptedException => Thread.currentThread().interrupt()
-      }
-    }
-  }
-
+  /**
+   * Task responsible for moving this monster
+   *
+   * @return a runnable that represents the task and that will be
+   *          added to the monsterGameThreadPool to be executed
+   */
   private def moveRunnable: Runnable = new Runnable {
     override def run(): Unit =
-    try {
-      handler.post(new Runnable {
-        override def run(): Unit = move()
-        })
+      try {
+        runOnSpecificThread(move())
       } catch {
         case _: InterruptedException => Thread.currentThread().interrupt()
       }
   }
 
+  /**
+   * Task responsible for changing this monster state
+   *
+   * @return a runnable that represents the task and that will be
+   *          added to the monsterGameThreadPool to be executed
+   */
   private def changeStateRunnable: Runnable = new Runnable {
     override def run(): Unit =
       try {
-        handler.post(new Runnable {
-          override def run(): Unit = changeState()
-        })
+        runOnSpecificThread(changeState())
       } catch {
         case _: InterruptedException => Thread.currentThread().interrupt()
       }
   }
-
-  private def notifyListener(): Unit =
-    if (null != monsterChangeListener)
-      monsterChangeListener.onMonsterChange(this)
 
 }
