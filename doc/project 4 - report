@@ -1,0 +1,28 @@
+    The journey of project 4 was pretty challenging and interesting. Initially when we saw the description of project 4, looks like really difficult 
+to start. However, thanks to Professor Konstantin who posted UI demo app for initial start, it made our work easy in order to complete this 
+project. As we learned MVA architecture in project 3, the use of MVC architecture in this project 4 was a great learning experience for us and 
+we learned comparison between this two architecture.
+
+    In MVA architecture, the Adapter is strictly mediate between Model and View. The Adapter holds a pointer both to the Model and to the View and 
+directly calls methods on both.  At the same time, it attaches itself as a listener both to the Model and to the View in order to receive events.
+Moreover, the Adapter is entirely responsible for keeping the Model and the View in sync; the Model and View do both relatively know nothing about
+the other. 
+
+    Whereas in case of MVC architecture, Model, View and Controller are directly connected and communicate with each other. Here the Model part directly
+manages the data, logic and rules of the application. A View can be any output representation of information, such as a chart or a diagram. The 
+third part, the Controller, accepts input and converts it to commands for the Model or View. In this project, our Model part implements Monster 
+movements, its states, Monster creation, death etc. The View part shows layout and graphical representation of this app such as grid layout. The 
+Controller part illustrates touch interface of this project.
+
+    As the progress going on in this project, we had a trouble to achieve SOLID principle in order to increase our project quality. After some research,
+we decided to achieve "open/closed principle" because the open/closed principle is beneficial in order to design and write code that adding new 
+functionality with minimal changes to existing code.
+
+    Moreover, the most difficult part of this project was implementing concurrency in the monsters. The way we were trying to implement, using a thread
+to the monster, another one to move, a timer to change the state and the android.os.handler to post these threads to the android UI thread was 
+overloading the dalvikvm. We had a problem that we want to treat changes in the state and movement in an independent way and we thought the work
+Thread member of the class could handle that. However, we could not figure out how to do that. The way we implemented, we were able to handle only
+one behavior of the two: we could change the monster position or change its state. When we tried to do both, the logcat says things like 
+"Skipped XXXX frames!" and the screen freezes several times for long periods. We took help from Professor Konstantin and he suggested us to use
+Thread pool Executor. By using Thread pool Executor, our project was worked as wanted. Finally, our project is completed after some hard work 
+and Professor Konstantin's help.
