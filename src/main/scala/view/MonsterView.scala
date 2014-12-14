@@ -115,8 +115,10 @@ class MonsterView(context: Context, attrs: AttributeSet, defStyle: Int) extends 
       if (null != monster.getCell) {
         val x = getLeftVertex(monster.getCell.getCol)
         val y = getTopVertex(monster.getCell.getRow)
-        canvas.drawBitmap(BitmapFactory.decodeResource(getResources,
-        if (monster.isVulnerable) R.drawable.vulnerable else R.drawable.mprotected), x, y, paint)
+        canvas.drawBitmap(
+          BitmapFactory.decodeResource(getResources,
+            if (monster.isVulnerable) R.drawable.vulnerable else R.drawable.mprotected),
+          x, y, paint)
       }
     }
   }

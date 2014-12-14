@@ -1,6 +1,7 @@
 package edu.luc.cs.comp413.scala.monstergame.model
 
 import java.util.concurrent._
+import java.util.concurrent.atomic.AtomicBoolean
 
 import scala.util.Random
 
@@ -21,28 +22,21 @@ abstract class Monster(private val vulnerableInterval: Long,
                        private val moveInterval: Long,
                        private var monsterGameThreadPool: ScheduledThreadPoolExecutor) {
 
-  private var moveTask: ScheduledFuture[_] = _
+  private val moveTask: ScheduledFuture[_] = monsterGameThreadPool
+    .scheduleWithFixedDelay(moveRunnable,
+      (Random.nextFloat() * moveInterval).toLong,
+      moveInterval,
+      TimeUnit.MILLISECONDS)
 
-  private var changeStateTask: ScheduledFuture[_] = _
+  private val changeStateTask: ScheduledFuture[_] = monsterGameThreadPool
+    .scheduleWithFixedDelay(changeStateRunnable,
+      (Random.nextFloat() * vulnerableInterval).toLong,
+      vulnerableInterval,
+      TimeUnit.MILLISECONDS)
 
-  private var vulnerable = Random.nextBoolean()
+  private val vulnerable: AtomicBoolean = new AtomicBoolean(Random.nextBoolean())
 
   private var cell: Cell = null
-
-  { addMonsterTasksToTheThreadPool() }
-
-  def addMonsterTasksToTheThreadPool(): Unit = {
-    moveTask = monsterGameThreadPool
-      .scheduleWithFixedDelay(moveRunnable,
-        (Random.nextFloat() * 4 * moveInterval).toLong,
-        moveInterval,
-        TimeUnit.MILLISECONDS)
-    changeStateTask = monsterGameThreadPool
-      .scheduleWithFixedDelay(changeStateRunnable,
-        (Random.nextFloat() * 4 * vulnerableInterval).toLong,
-        vulnerableInterval,
-        TimeUnit.MILLISECONDS)
-  }
 
   /**
    *
@@ -51,32 +45,60 @@ abstract class Monster(private val vulnerableInterval: Long,
    */
   def runOnSpecificThread(monsterTask: => Unit): Unit
 
-  def setCell(cell: Cell): Unit = this.cell = cell
+  def getCell: Cell = synchronized { cell }
 
-  def getCell: Cell = cell
+  def isAlive: Boolean = synchronized { cell != null }
 
-  def isVulnerable: Boolean = vulnerable
+  def isVulnerable: Boolean = vulnerable.get()
 
-  def isAlive: Boolean = cell != null
-
+  /**
+   * Change the state of this monster
+   */
   def changeState(): Unit = {
-    if (isAlive) vulnerable = !vulnerable
+    if (isAlive) vulnerable.set(!vulnerable.get())
   }
 
+  /**
+   * Move this monster in the field
+   */
   def move(): Unit = {
     if (isAlive) {
-      cell.moveToRandomAdjacentCell()
+      if (null == getCell.getMonster) getCell.setMonster(this)
+      synchronized { getCell.moveToRandomAdjacentCell() }
     }
   }
 
+  /**
+   * This monster dies if this method is called when
+   *  this monster is in vulnerable state
+   */
   def die(): Unit = {
-    if (isVulnerable) {
-      moveTask.cancel(true)
-      changeStateTask.cancel(true)
-      monsterGameThreadPool = null
-      cell = null
-    }
+    if (isVulnerable) release()
   }
+
+  /**
+   * This method is responsible for removing this monster tasks of
+   *  the thread pool and removing the reference to the cell which
+   *  this monster was located
+   */
+  def release(): Unit = {
+    moveTask.cancel(true)
+    changeStateTask.cancel(true)
+    monsterGameThreadPool = null
+    removeRelWithCel()
+  }
+
+  def removeRelWithCel(): Unit = synchronized {
+    getCell.removeMonster()
+    setCell(null)
+  }
+
+  def createRelWithCel(cell: Cell): Unit = synchronized {
+    setCell(cell)
+    getCell.setMonster(this)
+  }
+
+  private def setCell(cell: Cell): Unit = this.synchronized { this.cell = cell }
 
   /**
    * Task responsible for moving this monster
@@ -107,5 +129,4 @@ abstract class Monster(private val vulnerableInterval: Long,
         case _: InterruptedException => Thread.currentThread().interrupt()
       }
   }
-
 }

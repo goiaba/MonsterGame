@@ -2,8 +2,6 @@ package edu.luc.cs.comp413.scala.monstergame
 package controller
 
 import android.app.Activity
-import android.content.pm.ActivityInfo
-import android.util.Log
 import android.view.{Menu, MenuItem}
 import edu.luc.cs.comp413.scala.monstergame.common.MonsterGameMemento
 import edu.luc.cs.comp413.scala.monstergame.model.MonsterGame.MonsterGameChangeListener

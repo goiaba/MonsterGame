@@ -16,29 +16,29 @@ trait Field {
   /**
    *
    * @return the number of columns that composes
-   *          this field
+   *         this field
    */
   def getNumberOfColumns: Int
 
   /**
    *
    * @return the number of rows that composes
-   *          this field
+   *         this field
    */
   def getNumberOfRows: Int
 
   /**
    *
    * @param row the row of the cell in which the monster
-   *             is located
+   *            is located
    * @param col the col of the cell in which the monster
-   *             is located
+   *            is located
    * @return
    */
   def getMonsterFromCell(row: Int, col: Int): Monster
 
   /**
-    * Put a new monster in a random empty cell
+   * Put a new monster in a random empty cell
    *
    * @return the created monster
    */
@@ -46,22 +46,24 @@ trait Field {
 
   /**
    * Insert the specified cell in the list of empty
-   *  (available) cells if it is really empty
+   * (available) cells if it is really empty
    *
    * @param cell the cell to be inserted in the list
-   *              of available cells
+   *             of available cells
    */
   def releaseCell(cell: Cell): Unit
 
+  def reset(): Unit
+
 }
 
-class MonsterField(val rows: Int, val cols: Int) extends Field {
+class MonsterField(private val rows: Int, private val cols: Int) extends Field {
 
   private val cellsGrid = Array.ofDim[Cell](rows, cols)
 
   private val emptyCellsInTheGrid = new ListBuffer[Cell]
 
-  { initCells() }
+  { reset() }
 
   /**
    *
@@ -77,36 +79,25 @@ class MonsterField(val rows: Int, val cols: Int) extends Field {
    */
   override def getNumberOfRows: Int = rows
 
-  override def getMonsterFromCell(row: Int, col: Int): Monster = {
-    val cell = cellsGrid(row)(col)
-    cell.getMonster
-  }
-
   /**
    *
-   * @return a random available cell in this field
+   * @param row the row of the cell in which the monster
+   *            is located
+   * @param col the col of the cell in which the monster
+   *            is located
+   * @return
    */
-  def getRandomAvailableCell: Cell = {
-    if (emptyCellsInTheGrid.nonEmpty) {
-      val size = emptyCellsInTheGrid.size
-      val cell = emptyCellsInTheGrid((Random.nextFloat() * size).toInt)
-      cell
-    } else {
-      null
-    }
-  }
+  override def getMonsterFromCell(row: Int, col: Int): Monster = synchronized { cellsGrid(row)(col).getMonster }
 
   /**
-   * Put a new monster in a random empty cell
+    * Put a new monster in a random empty cell
    *
    * @return the created monster
    */
-  override def putMonsterInARandomCell(monster: Monster): Boolean = {
+  override def putMonsterInARandomCell(monster: Monster): Boolean = synchronized {
     val cell = getRandomAvailableCell
     if (null != cell) {
-      cell.setMonster(monster)
-      monster.setCell(cell)
-      emptyCellsInTheGrid -= cell
+      monster.createRelWithCel(cell)
       true
     } else false
   }
@@ -115,10 +106,35 @@ class MonsterField(val rows: Int, val cols: Int) extends Field {
    * Insert the specified cell in the list of empty
    *  (available) cells
    */
-  override def releaseCell(cell: Cell): Unit = {
+  override def releaseCell(cell: Cell): Unit = synchronized {
     require(cell != null, "cell cannot be null")
-    cell.removeMonster()
     emptyCellsInTheGrid += cell
+  }
+
+  override def reset(): Unit = synchronized {
+    initCells()
+    initAdjacencyOfCells()
+  }
+
+  /**
+   *
+   * @return a random available cell in this field
+   */
+  private def getRandomAvailableCell: Cell = synchronized {
+    if (emptyCellsInTheGrid.nonEmpty)
+      emptyCellsInTheGrid.remove(Random.nextInt(emptyCellsInTheGrid.size))
+    else null
+  }
+
+  private def initCells(): Unit = {
+    emptyCellsInTheGrid.clear()
+    for (row <- 0 until rows) {
+      for (col <- 0 until cols) {
+        val emptyMonsterCell: Cell = new MonsterCell(row, col)
+        cellsGrid(row)(col) = emptyMonsterCell
+        emptyCellsInTheGrid += emptyMonsterCell
+      }
+    }
   }
 
   /**
@@ -126,16 +142,7 @@ class MonsterField(val rows: Int, val cols: Int) extends Field {
    *  move to adjacent cells. So, to facilitate we initially
    *  set the adjacent cells of each cell in the field.
    */
-  private def initCells() = {
-
-    /* initialize each cell */
-    for (row <- 0 until rows) {
-      for (col <- 0 until cols) {
-        val emptyMonsterCell = new MonsterCell(row, col)
-        cellsGrid(row)(col) = emptyMonsterCell
-        emptyCellsInTheGrid += emptyMonsterCell
-      }
-    }
+  private def initAdjacencyOfCells() = {
 
     /* set adjacent cells */
     for (row <- 0 until rows) {

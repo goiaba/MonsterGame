@@ -2,6 +2,7 @@ package edu.luc.cs.comp413.scala.monstergame.model
 
 import java.util.concurrent.{Executors, ScheduledThreadPoolExecutor}
 
+import android.util.Log
 import edu.luc.cs.comp413.scala.monstergame.common.MonsterGameMemento
 
 import scala.collection.mutable.ListBuffer
@@ -56,7 +57,10 @@ class MonsterGame(val rows: Int, val cols: Int) {
 
   private var monsterGameChangeListener: MonsterGame.MonsterGameChangeListener = _
 
-  private val poolSize = 1
+  /**
+   * Number of threads in the monsterGameThreadPool
+   */
+  private val poolSize = 2
 
   /**
    * A pool of threads that are responsible for execute the moving and changing of
@@ -86,7 +90,7 @@ class MonsterGame(val rows: Int, val cols: Int) {
 
   private var elapsedTime: Long = 0
 
-  private var cancelled = false
+  private var cancelled: Boolean = false
 
   /**
    * Store the current state of the game
@@ -121,37 +125,24 @@ class MonsterGame(val rows: Int, val cols: Int) {
 
   def getLevel: MonsterGameLevel = this.level
   
-  def getAvailableLevels: List[MonsterGameLevel] =
-    List[MonsterGameLevel](Level1, Level2, Level3)
+  def getAvailableLevels: List[MonsterGameLevel] = List[MonsterGameLevel](Level1, Level2, Level3)
 
   def isRunning: Boolean = monsters.nonEmpty
 
-  private def startGame(numberOfMonsters: Int): Unit = {
-    cancelled = false
-    for (m <- 1 to numberOfMonsters)
-      createMonster()
-    notifyListener()
-  }
-
-  def startGame(): Unit = {
+  def startGame(): Unit = synchronized {
     startGame(level.numberOfMonsters)
     startTime = System.currentTimeMillis()
   }
 
-  def calcElapsedTime(): Unit = {
-    elapsedTime = System.currentTimeMillis() - startTime
-  }
+  def calcElapsedTime(): Unit = elapsedTime = System.currentTimeMillis() - startTime
 
-  def cancelGame(): Unit = {
+  def cancelGame(): Unit = synchronized {
     cancelled = true
-    for (monster <- monsters) {
-      monster.synchronized {
-        gameBoard.releaseCell(monster.getCell)
-        monsters -= monster
-        monster.die
-      }
-    }
+    monsters.foreach(monster => monster.release())
+    monsters.foreach(monster => Log.i("MonsterGame", if (null!=monster.getCell) monster.getCell.toString else "null cell"))
+    monsters.foreach(monster => Log.i("MonsterGame", if (null!=monster.getCell && null!=monster.getCell.getMonster) monster.getCell.getMonster.toString else "null monster in cell"))
     monsters.clear()
+    gameBoard.reset()
     notifyListener()
   }
 
@@ -161,7 +152,7 @@ class MonsterGame(val rows: Int, val cols: Int) {
 
   def getMonsters: List[Monster] = monsters.toList
 
-  def createMonster(): Unit = {
+  def createMonster(): Unit = synchronized {
     val newMonster = new Monster(level.monsterVulnerableSliceTime,
           level.maxDelayToMove, monsterGameThreadPool) {
             override def runOnSpecificThread(monsterTask: => Unit): Unit =
@@ -173,18 +164,23 @@ class MonsterGame(val rows: Int, val cols: Int) {
     }
   }
 
-  def killMonster(row: Int, col: Int): Unit = {
+  def killMonster(row: Int, col: Int): Unit = synchronized {
     val monster = gameBoard.getMonsterFromCell(row, col)
     if (null != monster && monster.isVulnerable) {
-      monster.synchronized {
-        gameBoard.releaseCell(monster.getCell)
-        monster.die()
-        monsters -= monster
-      }
+      gameBoard.releaseCell(monster.getCell)
+      monster.die()
+      monsters -= monster
       if (monsters.isEmpty)
         calcElapsedTime()
       notifyListener()
     }
+  }
+
+  private def startGame(numberOfMonsters: Int): Unit = {
+    cancelled = false
+    for (m <- 1 to numberOfMonsters)
+      createMonster()
+    notifyListener()
   }
 
   private def notifyListener(): Unit =

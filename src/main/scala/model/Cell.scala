@@ -1,7 +1,5 @@
 package edu.luc.cs.comp413.scala.monstergame.model
 
-import java.util.concurrent.Semaphore
-
 import scala.collection.mutable.ListBuffer
 import scala.util.Random
 
@@ -27,16 +25,6 @@ trait Cell {
    * @return the column in which this cell is located in the matrix
    */
   def getCol: Int
-
-  /**
-   * @return a list containing all adjacent cells of this cell
-   */
-  def getAdjacentCells: List[Cell]
-
-  /**
-   * @return return a random adjacent cell of this cell
-   */
-  def getRandomAdjacentCell: Cell
 
   /**
    * Moves the content of this cell to another random
@@ -74,37 +62,48 @@ trait Cell {
 class MonsterCell(val row: Int, val col: Int) extends Cell {
 
   private var monster: Monster = null
+
+  /**
+   * a list containing all adjacent cells of this cell
+   */
   private val adjacentCells = new ListBuffer[Cell]
 
-  override def getAdjacentCells: List[Cell] = adjacentCells.toList
-
-  override def getRandomAdjacentCell: Cell = {
-    val index = Random.nextInt(adjacentCells.size)
-    adjacentCells(index)
-  }
-
-  override def moveToRandomAdjacentCell() = {
+  /**
+   *
+   */
+  override def moveToRandomAdjacentCell() = synchronized {
+    require(null != getMonster, "Monster cannot be null, " +
+      "since this method is called by a monster that is inside this cell (race condition?)")
     val randomCell = getRandomAdjacentCell
-    if (randomCell.isEmpty && null != monster) {
-      randomCell.setMonster(monster)
-      monster.setCell(randomCell)
-      removeMonster()
-    }
+    if (randomCell.isEmpty) {
+      val innerMonster = getMonster
+      getMonster.removeRelWithCel()
+      innerMonster.createRelWithCel(randomCell)
+    } /* else wait for the next turn of moving. */
   }
 
-  override def addAdjacentCell(cell: Cell) = adjacentCells += cell
+  override def addAdjacentCell(cell: Cell) = synchronized { adjacentCells += cell }
 
-  override def removeMonster(): Unit = monster = null
+  override def removeMonster(): Unit = synchronized { monster = null }
 
-  override def setMonster(monster: Monster): Unit = this.monster = monster
+  override def setMonster(monster: Monster): Unit = synchronized {
+    require(null != monster, "monster being set to a cell cannot be null")
+    this.monster = monster
+  }
 
-  override def getMonster: Monster = monster
+  override def getMonster: Monster = synchronized { monster }
+
+  override def isEmpty: Boolean = getMonster == null
 
   override def getRow: Int = row
 
   override def getCol: Int = col
 
-  override def isEmpty: Boolean = monster == null
+  override def toString: String = "Cell[" + row + ", " + col + "]"
 
-  override def toString: String = "[" + row + ", " + col + "]"
+  /**
+   * @return return a random adjacent cell of this cell
+   */
+  private def getRandomAdjacentCell: Cell = synchronized { adjacentCells(Random.nextInt(adjacentCells.size)) }
+
 }
